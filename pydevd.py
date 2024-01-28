@@ -42,6 +42,7 @@ from _pydev_bundle._pydev_filesystem_encoding import getfilesystemencoding
 from _pydev_bundle.pydev_is_thread_alive import is_thread_alive
 from _pydev_bundle.pydev_override import overrides
 from _pydev_bundle._pydev_saved_modules import threading, time, thread
+from _pydev_bundle import _pydev_saved_modules
 from _pydevd_bundle import pydevd_extension_utils, pydevd_frame_utils
 from _pydevd_bundle.pydevd_filtering import FilesFiltering, glob_matches_path
 from _pydevd_bundle import pydevd_io, pydevd_vm_type, pydevd_defaults
@@ -251,7 +252,7 @@ class CheckAliveThread(PyDBDaemonThread):
         PyDBDaemonThread.__init__(self, py_db)
         self.name = 'pydevd.CheckAliveThread'
         self.daemon = False
-        self._wait_event = threading.Event()
+        self._wait_event = _create_event()
 
     @overrides(PyDBDaemonThread._on_run)
     def _on_run(self):
@@ -467,6 +468,10 @@ class ThreadsSuspendedSingleNotification(AbstractSingleNotificationBehavior):
             yield
 
 
+def _create_event():
+    return _pydev_saved_modules._SavedEvent()
+
+
 class _Authentication(object):
 
     __slots__ = ['access_token', 'client_access_token', '_authenticated', '_wrong_attempts']
@@ -535,13 +540,13 @@ class PyDB(object):
         self._fsnotify_thread = None
         self.created_pydb_daemon_threads = {}
         self._waiting_for_connection_thread = None
-        self._on_configuration_done_event = threading.Event()
+        self._on_configuration_done_event = _create_event()
         self.check_alive_thread = None
         self.py_db_command_thread = None
         self.quitting = None
         self.cmd_factory = NetCommandFactory()
         self._cmd_queue = defaultdict(_queue.Queue)  # Key is thread id or '*', value is Queue
-        self._thread_events = defaultdict(threading.Event)  # Key is thread id or '*', value is Event
+        self._thread_events = defaultdict(_create_event)  # Key is thread id or '*', value is Event
         self.suspended_frames_manager = SuspendedFramesManager()
         self._files_filtering = FilesFiltering()
         self.timeout_tracker = TimeoutTracker(self)
@@ -591,14 +596,14 @@ class PyDB(object):
         self._main_lock = thread.allocate_lock()
         self._lock_running_thread_ids = thread.allocate_lock()
         self._lock_create_fs_notify = thread.allocate_lock()
-        self._py_db_command_thread_event = threading.Event()
+        self._py_db_command_thread_event = _create_event()
         if set_as_global:
             CustomFramesContainer._py_db_command_thread_event = self._py_db_command_thread_event
 
         self.pydb_disposed = False
         self._wait_for_threads_to_finish_called = False
         self._wait_for_threads_to_finish_called_lock = thread.allocate_lock()
-        self._wait_for_threads_to_finish_called_event = threading.Event()
+        self._wait_for_threads_to_finish_called_event = _create_event()
 
         self.terminate_requested = False
         self._disposed_lock = thread.allocate_lock()
@@ -677,7 +682,7 @@ class PyDB(object):
 
         self._local_thread_trace_func = threading.local()
 
-        self._server_socket_ready_event = threading.Event()
+        self._server_socket_ready_event = _create_event()
         self._server_socket_name = None
 
         # Bind many locals to the debugger because upon teardown those names may become None
@@ -1538,7 +1543,7 @@ class PyDB(object):
                     pass
                 self._server_socket = None
 
-    def get_internal_queue_and_event(self, thread_id) -> Tuple[_queue.Queue, threading.Event]:
+    def get_internal_queue_and_event(self, thread_id) -> Tuple[_queue.Queue, _create_event]:
         """ returns internal command queue for a given thread.
         if new queue is created, notify the RDB about it """
         if thread_id.startswith('__frame__'):
