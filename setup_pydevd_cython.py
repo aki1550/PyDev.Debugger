@@ -282,3 +282,4 @@ if extension_folder:
         file = os.path.join(folder, "__init__.py")
         if not os.path.exists(file):
             open(file, "a").close()
+
